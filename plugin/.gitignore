@@ -1,0 +1,8 @@
+# Dependencies installed by Wally
+Packages/
+*.rbxm
+*.rbxl
+*.rbxlx
+
+# Rojo build artifacts
+*.rbxm
