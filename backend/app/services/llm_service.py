@@ -1,0 +1,191 @@
+"""
+LLM integration service for the Roblox AI Code Assistant.
+Calls OpenAI chat completions API with RAG-grounded context.
+Enforces hallucination guardrails and zero data retention.
+"""
+import time
+import os
+from typing import Optional
+
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment — OPENAI_API_KEY from backend/.env
+load_dotenv()
+
+# Preferred model for development: gpt-4o-mini (faster, cheaper)
+# For higher accuracy, gpt-4o is also available
+DEFAULT_MODEL = "gpt-4o-mini"
+ALT_MODEL = "gpt-4o"
+
+SYSTEM_PROMPT = """You are a Roblox Luau code generation assistant. Your job is to generate production-ready, 
+type-safe Lua(u) code based on the user's request.
+
+CRITICAL RULES:
+1. ONLY use APIs, methods, properties, events, and callbacks that are EXPLICITLY listed in the provided 
+   Roblox API documentation context below. Never reference any API not present in the context.
+2. If you are unsure about any API, method, or property signature, respond with exactly:
+   "I don't know" and suggest checking the official Roblox Engine API docs at https://create.roblox.com/docs.
+   NEVER invent APIs or method signatures. Hallucinating non-existent APIs causes real bugs.
+3. Generate clean, well-commented Luau code that follows Roblox best practices:
+   - Use strict typing (`: number`, `: string`, etc.) where possible
+   - Prefer `task.spawn()` over `spawn()`, `task.wait()` over `wait()`
+   - Use `coroutine.wrap()` or `task.spawn()` for async patterns
+   - Reference `game:GetService("ServiceName")` for all service access
+   - No `loadstring()`, `getfenv()`, or other sandbox-escaping functions (they won't execute)
+4. For each code snippet, include a `-- Grounding:` comment block listing the exact API docs used.
+5. Context type matters:
+   - `server`: Script (runs on server), can use Server-side APIs
+   - `client`: LocalScript (runs on client), only client-accessible APIs
+   - `module`: ModuleScript (shared), must work on both sides or clearly document context
+6. Keep responses concise — output the code directly, minimal prose.
+
+FORMAT YOUR RESPONSE:
+```lua
+-- [Brief description of what this does]
+-- Context: [server|client|module]
+-- Grounding: [class.method or class.property from provided docs]
+
+-- The actual Luau code here
+```
+
+If the user's request cannot be fulfilled with the provided documentation, reply:
+"I don't know — the provided documentation doesn't contain the necessary APIs. 
+Please check https://create.roblox.com/docs for more information."
+"""
+
+
+class LLMService:
+    """Calls OpenAI chat completions with RAG context injection."""
+
+    def __init__(self, model: str = DEFAULT_MODEL):
+        self._client: Optional[OpenAI] = None
+        self._model = model
+
+    @property
+    def client(self) -> OpenAI:
+        if self._client is None:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise RuntimeError(
+                    "OPENAI_API_KEY not found in environment. "
+                    "Set it in backend/.env or export it."
+                )
+            self._client = OpenAI(api_key=api_key)
+        return self._client
+
+    def build_context_from_chunks(self, chunks: list[dict]) -> str:
+        """
+        Format retrieved RAG chunks into a structured context block
+        for the LLM prompt.
+        """
+        if not chunks:
+            return "No relevant Roblox API documentation found."
+
+        lines = ["### Roblox API Documentation Context (verified official docs):\n"]
+        for i, chunk in enumerate(chunks, 1):
+            meta = chunk.get("metadata", {})
+            class_name = meta.get("class_name", "Unknown")
+            section = meta.get("section_type", "reference")
+            relevance = chunk.get("relevance_score", 0.0)
+
+            lines.append(f"--- Doc #{i} | {class_name} | {section} | relevance={relevance:.2f}")
+            lines.append(f"URL: {meta.get('source_url', 'N/A')}")
+            lines.append(chunk.get("content", "").strip())
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def generate(
+        self,
+        query: str,
+        context_chunks: list[dict],
+        context_type: str = "module",
+    ) -> dict:
+        """
+        Generate Luau code from a user query, grounded in RAG context.
+
+        Args:
+            query: The user's natural language request
+            context_chunks: Retrieved doc chunks from vector_store.query()
+            context_type: "server", "client", or "module"
+
+        Returns:
+            dict with keys: code, api_references, generation_time_ms, model_used
+        """
+        context_block = self.build_context_from_chunks(context_chunks)
+
+        user_prompt = f"""User Request (context type: {context_type}):
+{query}
+
+{context_block}
+
+Generate the Luau code following all the rules above."""
+
+        start = time.time()
+
+        response = self.client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2,  # low temp for deterministic code generation
+            max_tokens=2048,
+        )
+
+        elapsed = (time.time() - start) * 1000
+
+        raw_output = response.choices[0].message.content or ""
+
+        # Extract code block from response
+        code = self._extract_code(raw_output)
+        api_refs = self._extract_grounding_refs(raw_output)
+
+        # Check for "I don't know" fallback
+        is_uncertain = "I don't know" in raw_output
+
+        return {
+            "code": code,
+            "raw_response": raw_output,
+            "api_references": api_refs,
+            "generation_time_ms": round(elapsed, 2),
+            "model_used": self._model,
+            "is_uncertain": is_uncertain,
+        }
+
+    def _extract_code(self, response: str) -> str:
+        """Extract the Luau code block from the response."""
+        if "```lua" in response:
+            parts = response.split("```lua", 1)
+            if len(parts) > 1:
+                code_parts = parts[1].split("```", 1)
+                return code_parts[0].strip()
+        if "```luau" in response:
+            parts = response.split("```luau", 1)
+            if len(parts) > 1:
+                code_parts = parts[1].split("```", 1)
+                return code_parts[0].strip()
+        if "```" in response:
+            parts = response.split("```", 1)
+            if len(parts) > 1:
+                code_parts = parts[1].split("```", 1)
+                return code_parts[0].strip()
+        return response.strip()
+
+    def _extract_grounding_refs(self, response: str) -> list[str]:
+        """Extract API grounding references from the response."""
+        refs = []
+        for line in response.split("\n"):
+            line_stripped = line.strip()
+            if line_stripped.startswith("-- Grounding:"):
+                ref_text = line_stripped.replace("-- Grounding:", "").strip()
+                refs.append(ref_text)
+            elif line_stripped.startswith("Grounding:"):
+                ref_text = line_stripped.replace("Grounding:", "").strip()
+                refs.append(ref_text)
+        return refs if refs else ["No grounding references extracted"]
+
+
+# Singleton
+llm_service = LLMService()
