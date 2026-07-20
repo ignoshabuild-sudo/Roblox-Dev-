@@ -1,6 +1,9 @@
 """
-FastAPI application for the Roblox AI Code Assistant RAG pipeline.
-Provides a /query endpoint for retrieving relevant Roblox API documentation.
+FastAPI application for the Roblox AI Code Assistant.
+Provides:
+  - /query — RAG retrieval of Roblox API documentation
+  - /generate — LLM-powered Luau code generation (RAG-grounded)
+  - /health — Health check with DB stats
 """
 import time
 from contextlib import asynccontextmanager
@@ -10,8 +13,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import DEFAULT_TOP_K
-from app.models.schemas import QueryRequest, QueryResponse, DocChunk, HealthResponse
+from app.models.schemas import (
+    QueryRequest, QueryResponse, DocChunk, HealthResponse,
+    GenerateRequest, GenerateResponse,
+)
 from app.services.vector_store import vector_store
+from app.services.llm_service import llm_service, DEFAULT_MODEL
 
 
 @asynccontextmanager
@@ -100,4 +107,71 @@ async def query_docs(request: QueryRequest):
         chunks=doc_chunks,
         retrieval_time_ms=round(retrieval_ms, 2),
         total_indexed_classes=0,  # placeholder; populated from stats
+    )
+
+
+@app.post("/generate", response_model=GenerateResponse)
+async def generate_code(request: GenerateRequest):
+    """
+    Generate production-ready Luau code from a natural language description.
+
+    Flow: user query → RAG retrieval → prompt construction → OpenAI → code
+
+    Non-Negotiables:
+      - Sub-3-second total latency target
+      - Zero data retention: user queries NEVER logged or stored
+      - Hallucination guardrails: model must only use APIs from provided docs
+      - "I don't know" fallback when APIs are uncertain
+      - No sandbox-escaping functions (loadstring, getfenv, etc.)
+    """
+    total_start = time.time()
+
+    # 1. RAG retrieval
+    try:
+        chunks, retrieval_ms = vector_store.query(
+            query_text=request.query,
+            top_k=request.top_k or DEFAULT_TOP_K,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAG retrieval error: {str(e)}")
+
+    # 2. LLM generation with RAG context
+    model = request.model or DEFAULT_MODEL
+    if model != DEFAULT_MODEL:
+        # Override model on the service if a different one is requested
+        llm_service._model = model
+    else:
+        llm_service._model = DEFAULT_MODEL
+
+    try:
+        gen_result = llm_service.generate(
+            query=request.query,
+            context_chunks=chunks,
+            context_type=request.context_type,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM generation error: {str(e)}")
+
+    total_ms = (time.time() - total_start) * 1000
+
+    # NOTE: Zero data retention — the user's query is discarded after this response.
+    # We only log anonymized timing metrics.
+    # Query discarded after response — zero retention policy
+    print(
+        f"[generate] retrieval={retrieval_ms:.0f}ms "
+        f"generation={gen_result['generation_time_ms']:.0f}ms "
+        f"total={total_ms:.0f}ms "
+        f"model={gen_result['model_used']} "
+        f"chunks={len(chunks)} "
+        f"uncertain={gen_result['is_uncertain']}"
+    )
+
+    return GenerateResponse(
+        code=gen_result["code"],
+        api_references=gen_result["api_references"],
+        retrieval_time_ms=round(retrieval_ms, 2),
+        generation_time_ms=gen_result["generation_time_ms"],
+        total_time_ms=round(total_ms, 2),
+        model_used=gen_result["model_used"],
+        is_uncertain=gen_result["is_uncertain"],
     )
