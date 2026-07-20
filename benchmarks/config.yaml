@@ -1,0 +1,39 @@
+# Benchmark Configuration
+# All paths are relative to the benchmarks/ directory.
+
+# API endpoint for the /generate endpoint
+api:
+  base_url: "http://localhost:8000"
+  generate_path: "/generate"
+  timeout_seconds: 15
+
+# Scoring weights (must sum to 1.0)
+scoring:
+  syntax_weight: 0.30
+  semantic_weight: 0.45
+  structural_weight: 0.25
+
+# Pass/fail thresholds
+thresholds:
+  composite_pass: 0.70     # Individual test passes at >= 70%
+  suite_pass_rate: 0.90    # 90% of tests must pass for suite to be green
+  syntax_pass_rate: 0.85   # 85% first-try syntax accuracy target
+  uncertain_max: 0.05      # Max 5% "I don't know" rate
+
+# Sandbox-escaping patterns to reject (regex)
+sandbox_blacklist:
+  - "loadstring"
+  - "getfenv"
+  - "setfenv"
+  - "getsenv"
+  - "newcclosure"
+  - "hookfunction"
+  - "checkcaller"
+  - "__namecall"
+  - "__index"
+
+# Output
+output:
+  results_dir: "results"
+  verbose: false
+  save_json: true

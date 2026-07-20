@@ -1,0 +1,14 @@
+id: "02-remotefunctions-01-invoke-server"
+category: "remotefunctions"
+context_type: "server"
+prompt: "Create a server Script that creates a RemoteFunction named 'GetServerTime' in ReplicatedStorage. When invoked by a client, it should return the current server time using os.time()."
+ground_truth: "01-invoke-server.luau"
+expected_apis:
+  - "Instance.new"
+  - "RemoteFunction"
+  - "OnServerInvoke"
+  - "GetService"
+  - "os.time"
+expected_patterns:
+  - "invoke-server"
+  - "get-service"

@@ -1,0 +1,14 @@
+id: "01-remoteevents-01-basic-fire-server"
+category: "remoteevents"
+context_type: "server"
+prompt: "Create a server Script that creates a RemoteEvent named 'Ping' in ReplicatedStorage and listens for any player to fire it. When fired, print the player's name and the message they sent."
+ground_truth: "01-basic-fire-server.luau"
+expected_apis:
+  - "Instance.new"
+  - "RemoteEvent"
+  - "OnServerEvent"
+  - "Connect"
+  - "GetService"
+expected_patterns:
+  - "fire-to-server"
+  - "get-service"

@@ -1,0 +1,13 @@
+id: "01-remoteevents-02-basic-fire-client"
+category: "remoteevents"
+context_type: "client"
+prompt: "Write a client LocalScript that finds a RemoteEvent called 'Ping' in ReplicatedStorage and fires it to the server with the message 'Hello from client!'."
+ground_truth: "02-basic-fire-client.luau"
+expected_apis:
+  - "GetService"
+  - "ReplicatedStorage"
+  - "WaitForChild"
+  - "FireServer"
+expected_patterns:
+  - "fire-to-server"
+  - "get-service"

@@ -1,0 +1,13 @@
+id: "01-remoteevents-03-fire-all-clients"
+category: "remoteevents"
+context_type: "server"
+prompt: "Create a server Script that creates a RemoteEvent named 'Broadcast' in ReplicatedStorage. Include a helper function that uses FireAllClients to send a message to every connected player."
+ground_truth: "03-fire-all-clients.luau"
+expected_apis:
+  - "Instance.new"
+  - "RemoteEvent"
+  - "FireAllClients"
+  - "GetService"
+expected_patterns:
+  - "fire-all-clients"
+  - "get-service"
