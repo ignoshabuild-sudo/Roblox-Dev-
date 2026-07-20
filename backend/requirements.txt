@@ -1,0 +1,7 @@
+# RAG Pipeline Dependencies (lightweight — ONNX embeddings, no PyTorch)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+chromadb==0.5.23
+httpx==0.28.1
+pydantic==2.10.3
+python-multipart==0.0.18
