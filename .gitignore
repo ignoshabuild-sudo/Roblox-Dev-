@@ -4,21 +4,20 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
-
 # ChromaDB — vector database is environment-local, not committed
 data/chroma_db/
-
 # Ingestion stats (local)
 data/processed/
-
+# Benchmarks — results are generated, not committed
+benchmarks/results/*.json
 # IDE
 .idea/
 .vscode/
 *.swp
-
 # OS
 .DS_Store
 Thumbs.db
-
 # Logs
 *.log
+# Env files (API keys)
+.env
