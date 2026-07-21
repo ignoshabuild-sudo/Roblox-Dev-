@@ -1,0 +1,16 @@
+id: "16-pathfinding-01-create-compute-path"
+category: "pathfinding"
+context_type: "server"
+prompt: "Create a server Script that uses PathfindingService:CreatePath with agent parameters (radius, height, slope, water cost) and computes a path between two Vector3 positions. Check PathStatus.Success and print waypoint count."
+ground_truth: "01-create-compute-path.luau"
+expected_apis:
+  - "GetService"
+  - "PathfindingService"
+  - "CreatePath"
+  - "ComputeAsync"
+  - "GetWaypoints"
+  - "PathStatus"
+expected_patterns:
+  - "get-service"
+  - "pathfinding"
+  - "error-handling"

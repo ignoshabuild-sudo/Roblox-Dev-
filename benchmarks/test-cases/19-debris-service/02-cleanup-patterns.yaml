@@ -1,0 +1,16 @@
+id: "19-debris-service-02-cleanup-patterns"
+category: "debris-service"
+context_type: "server"
+prompt: "Create a server Script that simulates an explosion by spawning 12 debris parts with random colors and velocities from a center point, then adds all parts to Debris with a 4-second lifetime."
+ground_truth: "02-cleanup-patterns.luau"
+expected_apis:
+  - "GetService"
+  - "Debris"
+  - "AddItem"
+  - "Instance.new"
+  - "Color3.fromRGB"
+  - "math.random"
+expected_patterns:
+  - "get-service"
+  - "debris-cleanup"
+  - "particle-burst"

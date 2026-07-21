@@ -1,0 +1,16 @@
+id: "06-bindableevents-02-cross-module"
+category: "bindableevents"
+context_type: "module"
+prompt: "Create a ModuleScript that wraps BindableEvent into a reusable Signal class with Fire and Connect methods, supporting variadic arguments."
+ground_truth: "02-cross-module.luau"
+expected_apis:
+  - "Instance.new"
+  - "BindableEvent"
+  - "Event"
+  - "Connect"
+  - "Fire"
+  - "setmetatable"
+expected_patterns:
+  - "bindable-fire"
+  - "module-return"
+  - "oop-pattern"

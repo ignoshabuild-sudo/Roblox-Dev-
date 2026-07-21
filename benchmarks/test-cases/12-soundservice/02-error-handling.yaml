@@ -1,0 +1,18 @@
+id: "12-soundservice-02-error-handling"
+category: "soundservice"
+context_type: "client"
+prompt: "Create a client LocalScript with a function that safely loads and plays a Sound using pcall. Wait for the sound to load, handle creation and loading errors, and clean up on failure."
+ground_truth: "02-error-handling.luau"
+expected_apis:
+  - "GetService"
+  - "SoundService"
+  - "Instance.new"
+  - "Sound"
+  - "Play"
+  - "pcall"
+  - "Loaded"
+  - "Destroy"
+expected_patterns:
+  - "get-service"
+  - "sound-playback"
+  - "error-handling"

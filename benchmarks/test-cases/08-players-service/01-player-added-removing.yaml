@@ -1,0 +1,15 @@
+id: "08-players-service-01-player-added-removing"
+category: "players-service"
+context_type: "server"
+prompt: "Create a server Script that tracks player count using Players.PlayerAdded and PlayerRemoving events. On join, create a leaderstats folder with a Coins IntValue for the player."
+ground_truth: "01-player-added-removing.luau"
+expected_apis:
+  - "GetService"
+  - "Players"
+  - "PlayerAdded"
+  - "PlayerRemoving"
+  - "Instance.new"
+expected_patterns:
+  - "get-service"
+  - "player-join-leave"
+  - "leaderstats"

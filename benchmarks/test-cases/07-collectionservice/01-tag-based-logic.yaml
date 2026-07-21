@@ -1,0 +1,15 @@
+id: "07-collectionservice-01-tag-based-logic"
+category: "collectionservice"
+context_type: "server"
+prompt: "Create a server Script that uses CollectionService to tag all Models with a Humanoid as 'Enemy', then gets all tagged instances. Include helper functions for tagging, getting tagged, and checking tags."
+ground_truth: "01-tag-based-logic.luau"
+expected_apis:
+  - "GetService"
+  - "CollectionService"
+  - "AddTag"
+  - "GetTagged"
+  - "HasTag"
+  - "GetDescendants"
+expected_patterns:
+  - "get-service"
+  - "tag-based-logic"

@@ -1,0 +1,15 @@
+id: "17-contextactionservice-01-bind-unbind"
+category: "contextactionservice"
+context_type: "client"
+prompt: "Create a client LocalScript that binds a 'Dash' action to LeftShift and ButtonR2 using ContextActionService:BindAction. Handle input state, return Sink on Begin, and include enableDash/disableDash functions with UnbindAction."
+ground_truth: "01-bind-unbind.luau"
+expected_apis:
+  - "GetService"
+  - "ContextActionService"
+  - "BindAction"
+  - "UnbindAction"
+  - "ContextActionResult"
+expected_patterns:
+  - "get-service"
+  - "action-binding"
+  - "input-detection"

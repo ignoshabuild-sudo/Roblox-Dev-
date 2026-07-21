@@ -1,0 +1,14 @@
+id: "10-runservice-01-heartbeat-loop"
+category: "runservice"
+context_type: "server"
+prompt: "Create a server Script that connects to RunService.Heartbeat to track elapsed time and disconnects after 10 seconds."
+ground_truth: "01-heartbeat-loop.luau"
+expected_apis:
+  - "GetService"
+  - "RunService"
+  - "Heartbeat"
+  - "Connect"
+  - "Disconnect"
+expected_patterns:
+  - "get-service"
+  - "heartbeat-loop"

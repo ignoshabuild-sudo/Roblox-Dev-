@@ -1,0 +1,17 @@
+id: "03-datastores-02-update-async-retry"
+category: "datastores"
+context_type: "server"
+prompt: "Create a server Script that uses UpdateAsync on a DataStore to atomically increment a player's coin balance. Include retry logic with exponential backoff up to MAX_RETRIES attempts."
+ground_truth: "02-update-async-retry.luau"
+expected_apis:
+  - "GetService"
+  - "DataStoreService"
+  - "GetDataStore"
+  - "UpdateAsync"
+  - "pcall"
+  - "Players"
+expected_patterns:
+  - "get-service"
+  - "datastore-update"
+  - "retry-logic"
+  - "error-handling"

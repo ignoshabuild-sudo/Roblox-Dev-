@@ -1,0 +1,16 @@
+id: "18-proximityprompts-02-triggered-handling"
+category: "proximityprompts"
+context_type: "client"
+prompt: "Create a client LocalScript that sets up ProximityPrompts on all CollectionService-tagged 'Collectible' parts. On Triggered, disable the prompt and destroy the item to prevent double-collection."
+ground_truth: "02-triggered-handling.luau"
+expected_apis:
+  - "GetService"
+  - "Instance.new"
+  - "ProximityPrompt"
+  - "Triggered"
+  - "GetTagged"
+  - "Destroy"
+expected_patterns:
+  - "get-service"
+  - "prompt-setup"
+  - "triggered-event"

@@ -1,0 +1,18 @@
+id: "16-pathfinding-02-waypoint-following"
+category: "pathfinding"
+context_type: "server"
+prompt: "Create a server Script that makes an NPC Model follow a computed path to a target. Iterate waypoints, handle Jump actions, use Humanoid:MoveTo and MoveToFinished:Wait() to move through each waypoint."
+ground_truth: "02-waypoint-following.luau"
+expected_apis:
+  - "GetService"
+  - "PathfindingService"
+  - "CreatePath"
+  - "ComputeAsync"
+  - "GetWaypoints"
+  - "Humanoid"
+  - "MoveTo"
+  - "MoveToFinished"
+expected_patterns:
+  - "get-service"
+  - "pathfinding"
+  - "waypoint-tracking"

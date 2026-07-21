@@ -1,0 +1,17 @@
+id: "04-tweenservice-02-chained-twens"
+category: "tweenservice"
+context_type: "client"
+prompt: "Write a client LocalScript that creates three chained tweens on a Part: move right, then up, then left, each over 1 second using the Completed event to chain them."
+ground_truth: "02-chained-twens.luau"
+expected_apis:
+  - "GetService"
+  - "TweenService"
+  - "TweenInfo"
+  - "Create"
+  - "Play"
+  - "Completed"
+  - "Instance.new"
+expected_patterns:
+  - "tween-play"
+  - "chained-tweens"
+  - "get-service"

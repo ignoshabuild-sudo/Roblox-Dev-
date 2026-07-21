@@ -1,0 +1,16 @@
+id: "07-collectionservice-02-instance-added-signal"
+category: "collectionservice"
+context_type: "server"
+prompt: "Create a server Script that uses CollectionService:GetInstanceAddedSignal and GetInstanceRemovedSignal to detect when 'Collectible' tagged instances are added or removed. Tag any existing parts named 'Coin'."
+ground_truth: "02-instance-added-signal.luau"
+expected_apis:
+  - "GetService"
+  - "CollectionService"
+  - "GetInstanceAddedSignal"
+  - "GetInstanceRemovedSignal"
+  - "AddTag"
+  - "GetDescendants"
+expected_patterns:
+  - "get-service"
+  - "tag-based-logic"
+  - "signal-connect"

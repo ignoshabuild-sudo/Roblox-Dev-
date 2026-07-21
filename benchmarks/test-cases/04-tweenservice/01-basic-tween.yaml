@@ -1,0 +1,15 @@
+id: "04-tweenservice-01-basic-tween"
+category: "tweenservice"
+context_type: "client"
+prompt: "Create a client LocalScript that uses TweenService to tween a Part from position (0,0,0) to (10,5,0) over 2 seconds using a Quad easing style."
+ground_truth: "01-basic-tween.luau"
+expected_apis:
+  - "GetService"
+  - "TweenService"
+  - "TweenInfo"
+  - "Create"
+  - "Play"
+  - "Instance.new"
+expected_patterns:
+  - "tween-play"
+  - "get-service"

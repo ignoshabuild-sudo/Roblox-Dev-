@@ -1,0 +1,16 @@
+id: "12-soundservice-01-sound-playback"
+category: "soundservice"
+context_type: "client"
+prompt: "Create a client LocalScript that creates a Sound instance parented to SoundService, sets its SoundId from an asset ID, plays it, and cleans up on End. Include volume control."
+ground_truth: "01-sound-playback.luau"
+expected_apis:
+  - "GetService"
+  - "SoundService"
+  - "Instance.new"
+  - "Sound"
+  - "Play"
+  - "Ended"
+  - "Destroy"
+expected_patterns:
+  - "get-service"
+  - "sound-playback"

@@ -1,0 +1,15 @@
+id: "09-userinputservice-01-input-began"
+category: "userinputservice"
+context_type: "client"
+prompt: "Create a client LocalScript that listens for InputBegan on UserInputService. Detect E key for interaction, Space for jumping, and MouseButton1 click. Skip game-processed events."
+ground_truth: "01-input-began.luau"
+expected_apis:
+  - "GetService"
+  - "UserInputService"
+  - "InputBegan"
+  - "Connect"
+  - "InputObject"
+expected_patterns:
+  - "get-service"
+  - "input-detection"
+  - "keycode-check"

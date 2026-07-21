@@ -1,0 +1,13 @@
+id: "18-proximityprompts-01-prompt-setup"
+category: "proximityprompts"
+context_type: "client"
+prompt: "Create a client LocalScript that creates a ProximityPrompt on a Door part with ActionText 'Open Door', HoldDuration 1.5, MaxActivationDistance 10, and line-of-sight required. Connect Triggered to handle interaction."
+ground_truth: "01-prompt-setup.luau"
+expected_apis:
+  - "Instance.new"
+  - "ProximityPrompt"
+  - "Triggered"
+  - "Connect"
+expected_patterns:
+  - "prompt-setup"
+  - "triggered-event"

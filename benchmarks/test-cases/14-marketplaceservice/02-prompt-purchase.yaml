@@ -1,0 +1,15 @@
+id: "14-marketplaceservice-02-prompt-purchase"
+category: "marketplaceservice"
+context_type: "server"
+prompt: "Create a server Script that prompts a player to purchase a gamepass when they join. Listen to PromptGamePassPurchaseFinished to handle the result, and use PromptGamePassPurchase to trigger the prompt."
+ground_truth: "02-prompt-purchase.luau"
+expected_apis:
+  - "GetService"
+  - "MarketplaceService"
+  - "PromptGamePassPurchase"
+  - "PromptGamePassPurchaseFinished"
+  - "Players"
+  - "PlayerAdded"
+expected_patterns:
+  - "get-service"
+  - "purchase-handling"

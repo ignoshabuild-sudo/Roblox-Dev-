@@ -1,0 +1,15 @@
+id: "05-modulescripts-02-typed-module"
+category: "modulescripts"
+context_type: "module"
+prompt: "Create a typed ModuleScript for an Inventory system using Luau OOP patterns. Include types for InventoryItem and Inventory with addItem, removeItem, and getTotalItems methods."
+ground_truth: "02-typed-module.luau"
+expected_apis:
+  - "require"
+  - "setmetatable"
+  - "table.insert"
+  - "table.remove"
+  - "ipairs"
+expected_patterns:
+  - "module-return"
+  - "typed-functions"
+  - "oop-pattern"

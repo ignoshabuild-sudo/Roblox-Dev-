@@ -1,0 +1,17 @@
+id: "14-marketplaceservice-01-process-receipt"
+category: "marketplaceservice"
+context_type: "server"
+prompt: "Create a server Script that sets MarketplaceService.ProcessReceipt. Use pcall, look up the player with GetPlayerByUserId, and grant 100 coins for product ID 12345678. Return appropriate ProductPurchaseDecision enums."
+ground_truth: "01-process-receipt.luau"
+expected_apis:
+  - "GetService"
+  - "MarketplaceService"
+  - "ProcessReceipt"
+  - "Players"
+  - "GetPlayerByUserId"
+  - "pcall"
+  - "ProductPurchaseDecision"
+expected_patterns:
+  - "get-service"
+  - "purchase-handling"
+  - "error-handling"

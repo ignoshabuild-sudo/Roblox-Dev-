@@ -1,0 +1,13 @@
+id: "11-replicatedstorage-01-wait-for-child"
+category: "replicatedstorage"
+context_type: "client"
+prompt: "Create a client LocalScript that uses ReplicatedStorage:WaitForChild to access a 'Remotes' folder, then retrieves a RemoteEvent named 'Ping'. Include a helper to load ModuleScripts from a 'Modules' folder."
+ground_truth: "01-wait-for-child.luau"
+expected_apis:
+  - "GetService"
+  - "ReplicatedStorage"
+  - "WaitForChild"
+expected_patterns:
+  - "get-service"
+  - "wait-for-child"
+  - "asset-organization"

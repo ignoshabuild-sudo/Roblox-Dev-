@@ -1,0 +1,15 @@
+id: "09-userinputservice-02-input-ended"
+category: "userinputservice"
+context_type: "client"
+prompt: "Create a client LocalScript that tracks held keys using InputBegan and InputEnded. Maintain a dictionary of currently held keys and expose an isKeyDown helper function."
+ground_truth: "02-input-ended.luau"
+expected_apis:
+  - "GetService"
+  - "UserInputService"
+  - "InputBegan"
+  - "InputEnded"
+  - "KeyCode"
+expected_patterns:
+  - "get-service"
+  - "input-detection"
+  - "key-tracking"

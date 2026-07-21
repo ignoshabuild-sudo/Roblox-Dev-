@@ -1,0 +1,14 @@
+id: "20-raycasting-01-basic-raycast"
+category: "raycasting"
+context_type: "server"
+prompt: "Create a server Script that performs a raycast using workspace:Raycast with RaycastParams. Shoot a ray downward from (0,10,0), print the hit instance name, position, material, and normal."
+ground_truth: "01-basic-raycast.luau"
+expected_apis:
+  - "workspace"
+  - "Raycast"
+  - "RaycastParams"
+  - "RaycastResult"
+  - "RaycastFilterType"
+expected_patterns:
+  - "raycast-hit"
+  - "hit-detection"

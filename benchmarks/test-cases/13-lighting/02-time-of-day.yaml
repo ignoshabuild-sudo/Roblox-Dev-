@@ -1,0 +1,17 @@
+id: "13-lighting-02-time-of-day"
+category: "lighting"
+context_type: "server"
+prompt: "Create a server Script that drives a day-night cycle by updating Lighting.ClockTime each Heartbeat frame. Reduce fog distance at night and increase it during daytime over a configurable DAY_LENGTH."
+ground_truth: "02-time-of-day.luau"
+expected_apis:
+  - "GetService"
+  - "Lighting"
+  - "RunService"
+  - "Heartbeat"
+  - "ClockTime"
+  - "FogEnd"
+  - "FogStart"
+expected_patterns:
+  - "get-service"
+  - "day-night-cycle"
+  - "heartbeat-loop"

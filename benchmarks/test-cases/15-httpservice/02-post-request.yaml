@@ -1,0 +1,18 @@
+id: "15-httpservice-02-post-request"
+category: "httpservice"
+context_type: "server"
+prompt: "Create a server Script with a function that posts player stats via HttpService:PostAsync with JSON-encoded body and ApplicationJson content type. Handle errors with pcall and decode the response."
+ground_truth: "02-post-request.luau"
+expected_apis:
+  - "GetService"
+  - "HttpService"
+  - "PostAsync"
+  - "JSONEncode"
+  - "JSONDecode"
+  - "pcall"
+  - "ApplicationJson"
+expected_patterns:
+  - "get-service"
+  - "http-request"
+  - "error-handling"
+  - "json-encode"

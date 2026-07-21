@@ -1,0 +1,14 @@
+id: "19-debris-service-01-add-item"
+category: "debris-service"
+context_type: "server"
+prompt: "Create a server Script with a function that spawns anchored, non-collidable Parts at given positions with colors, then adds them to Debris for automatic cleanup after a specified lifetime."
+ground_truth: "01-add-item.luau"
+expected_apis:
+  - "GetService"
+  - "Debris"
+  - "AddItem"
+  - "Instance.new"
+  - "Color3.fromRGB"
+expected_patterns:
+  - "get-service"
+  - "debris-cleanup"
