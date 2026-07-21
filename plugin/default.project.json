@@ -1,0 +1,17 @@
+{
+  "name": "RobloxAICodeAssistant",
+  "tree": {
+    "$path": "src",
+    "$className": "Folder",
+    "Shared": {
+      "$path": "src/Shared"
+    },
+    "Server": {
+      "$path": "src/Server"
+    },
+    "Client": {
+      "$path": "src/Client"
+    }
+  },
+  "emitLegacyScripts": false
+}
