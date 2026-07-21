@@ -17,7 +17,8 @@ from app.models.schemas import (
     QueryRequest, QueryResponse, DocChunk, HealthResponse,
     GenerateRequest, GenerateResponse,
 )
-from app.core.auth import require_api_key, validate_key, VALID_API_KEYS
+from app.core.auth import require_api_key, validate_key, VALID_API_KEYS, CREDIT_COST
+from app.core.credits import get_credits, deduct_credit
 from app.services.vector_store import vector_store
 from app.services.llm_service import llm_service, DEFAULT_MODEL
 
@@ -127,6 +128,19 @@ async def generate_code(request: GenerateRequest, api_key: dict = Depends(requir
     """
     total_start = time.time()
 
+    # ── Credit check ─────────────────────────────────────────────
+    tier = api_key.get("tier", "free")
+    api_key_str = api_key.get("_raw_key", "")
+    cost = CREDIT_COST.get(tier, 1)
+
+    if cost > 0:
+        credit_info = get_credits(api_key_str, tier)
+        if credit_info.get("credits_remaining", 0) <= 0:
+            raise HTTPException(
+                status_code=402,
+                detail="No credits remaining. Upgrade at https://23caccdb19d616fd54ecba6af9408adc.ctonew.app/#pricing or wait for daily reset.",
+            )
+
     # 1. RAG retrieval
     try:
         chunks, retrieval_ms = vector_store.query(
@@ -149,6 +163,7 @@ async def generate_code(request: GenerateRequest, api_key: dict = Depends(requir
             query=request.query,
             context_chunks=chunks,
             context_type=request.context_type,
+            tier=api_key.get("tier", "free"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM generation error: {str(e)}")
@@ -158,6 +173,11 @@ async def generate_code(request: GenerateRequest, api_key: dict = Depends(requir
     # NOTE: Zero data retention — the user's query is discarded after this response.
     # We only log anonymized timing metrics.
     # Query discarded after response — zero retention policy
+
+    # ── Credit deduction (free tier only) ─────────────────────────
+    if cost > 0:
+        deduct_credit(api_key_str, tier)
+
     print(
         f"[generate] retrieval={retrieval_ms:.0f}ms "
         f"generation={gen_result['generation_time_ms']:.0f}ms "
@@ -181,10 +201,31 @@ async def generate_code(request: GenerateRequest, api_key: dict = Depends(requir
 @app.get("/validate-key")
 async def validate_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
     """
-    Validate an API key and return its tier.
+    Validate an API key and return its tier and credit balance.
     Used by the Studio plugin and CLI to check access before making generate requests.
     """
     key_info = validate_key(x_api_key)
     if key_info is None:
-        return {"valid": False, "tier": None}
-    return {"valid": True, "tier": key_info.get("tier", "unknown")}
+        return {"valid": False, "tier": None, "credits_remaining": 0}
+    tier = key_info.get("tier", "unknown")
+    credit_info = get_credits(x_api_key, tier)
+    return {
+        "valid": True,
+        "tier": tier,
+        "credits_remaining": credit_info["credits_remaining"],
+        "daily_limit": credit_info.get("daily_limit", 10),
+        "total_used": credit_info.get("total_used", 0),
+    }
+
+
+@app.get("/credits")
+async def check_credits(x_api_key: str = Header(..., alias="X-API-Key")):
+    """
+    Check credit balance for the authenticated API key.
+    Returns remaining credits, tier, and daily limit.
+    """
+    key_info = validate_key(x_api_key)
+    if key_info is None:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    tier = key_info.get("tier", "free")
+    return get_credits(x_api_key, tier)
