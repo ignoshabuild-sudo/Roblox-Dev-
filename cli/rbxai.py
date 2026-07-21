@@ -8,12 +8,16 @@ Grounded in official Roblox API docs. Zero data retention.
 Usage:
     python rbxai.py "Create a RemoteEvent for player data sync"
     python rbxai.py --context server "DataStore with retry logic"
+    python rbxai.py --project "Create a tycoon game with money system"
+    python rbxai.py --project "Simple clicker game" --output-dir ./my-game
     python rbxai.py --credits
     python rbxai.py --key YOUR_KEY "Part welding system"
 """
 
 import argparse
+import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -28,6 +32,7 @@ try:
     from rich.syntax import Syntax
     from rich.panel import Panel
     from rich.table import Table
+    from rich.tree import Tree
     from rich import box
     HAS_RICH = True
 except ImportError:
@@ -40,7 +45,7 @@ except ImportError:
     pass
 
 # ── Configuration ───────────────────────────────────────────────
-DEFAULT_API_URL = "https://23caccdb19d616fd54ecba6af9408adc.ctonew.app"
+DEFAULT_API_URL = "http://127.0.0.1:8000"
 API_URL = os.environ.get("RBXAI_API_URL", DEFAULT_API_URL)
 
 
@@ -235,6 +240,160 @@ def generate_code(api_key: str, query: str, context_type: str):
         sys.exit(1)
 
 
+# ── Rojo project manifest template ───────────────────────────────
+
+ROJO_MANIFEST_TEMPLATE = """{
+  "name": "{project_name}",
+  "tree": {{
+    "$className": "DataModel",
+    "ServerScriptService": {{
+      "$path": "src/Server"
+    }},
+    "StarterPlayer": {{
+      "StarterPlayerScripts": {{
+        "$path": "src/Client"
+      }}
+    }},
+    "ReplicatedStorage": {{
+      "$path": "src/Shared"
+    }}
+  }}
+}}"""
+
+
+def sanitize_project_name(query: str) -> str:
+    """Derive a safe folder name from the query string."""
+    # Take first 3-4 words, lowercase, replace non-alphanumeric with hyphens
+    words = query.strip().lower().split()[:4]
+    name = "-".join(words)
+    name = re.sub(r"[^a-z0-9-]", "", name)
+    name = re.sub(r"-+", "-", name).strip("-")
+    return name or "generated-game"
+
+
+def generate_project(api_key: str, query: str, game_type: str, output_dir: str):
+    """Call the /generate-project endpoint and save files to disk."""
+    console = Console() if HAS_RICH else None
+
+    try:
+        resp = httpx.post(
+            f"{API_URL}/generate-project",
+            headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+            json={"query": query, "game_type": game_type},
+            timeout=60,
+        )
+        if resp.status_code == 401:
+            print("Error: Invalid API key. Check your key or get one at the dashboard.")
+            sys.exit(1)
+        if resp.status_code == 402:
+            detail = resp.json().get("detail", "No credits remaining")
+            print(f"Error: {detail}")
+            sys.exit(1)
+        if resp.status_code != 200:
+            detail = resp.json().get("detail", resp.text)
+            print(f"Error: {resp.status_code} — {detail}")
+            sys.exit(1)
+
+        data = resp.json()
+
+    except httpx.ConnectError:
+        print(f"Error: Cannot connect to {API_URL}. Is the server running?")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    # Show header
+    if console:
+        console.print()
+        console.print(Panel(
+            f"[bold]Game Type:[/bold] {data['manifest']['game_type']}\n"
+            f"[bold]Description:[/bold] {data['manifest']['description']}\n"
+            f"[bold]Files:[/bold] {len(data['files'])} generated\n"
+            f"[dim]Retrieval: {data.get('retrieval_time_ms', 0):.0f}ms · "
+            f"Generation: {data.get('generation_time_ms', 0):.0f}ms · "
+            f"Total: {data.get('total_time_ms', 0):.0f}ms · "
+            f"Model: {data.get('model_used', '?')}[/dim]",
+            title=f"🎮 {data['project_name']}",
+            border_style="green",
+        ))
+
+    # Write files to disk
+    project_dir = Path(output_dir)
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build file tree for display
+    file_tree: dict[str, list[dict]] = {}
+    for f in data["files"]:
+        path = f["path"]
+        if path.endswith(".luau"):
+            dir_key = str(Path(path).parent)
+        else:
+            dir_key = str(Path(path))
+        if dir_key not in file_tree:
+            file_tree[dir_key] = []
+        file_tree[dir_key].append(f)
+
+    # Write each file
+    for f in data["files"]:
+        file_path = project_dir / f["path"]
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(f["content"], encoding="utf-8")
+
+    # Write default.project.json (Rojo manifest)
+    rojo_path = project_dir / "default.project.json"
+    if not rojo_path.exists():
+        rojo_content = ROJO_MANIFEST_TEMPLATE.replace("{project_name}", data["project_name"])
+        rojo_path.write_text(rojo_content, encoding="utf-8")
+
+    # Write README.md
+    readme_path = project_dir / "README.md"
+    readme_path.write_text(
+        f"# {data['project_name']}\n\n"
+        f"{data['manifest']['description']}\n\n"
+        f"## Open in Roblox Studio\n\n"
+        f"1. Install [Rojo](https://rojo.space/)\n"
+        f"2. Run `rojo serve` in this directory\n"
+        f"3. Open Roblox Studio and connect the Rojo plugin\n\n"
+        f"Generated by [Roblox AI Code Assistant](https://23caccdb19d616fd54ecba6af9408adc.ctonew.app)\n",
+        encoding="utf-8",
+    )
+
+    # Display file tree
+    if console:
+        tree = Tree(f"📁 {project_dir.name}", guide_style="dim blue")
+        dir_nodes: dict[str, Tree] = {}
+
+        sorted_dirs = sorted(file_tree.keys())
+        for dir_key in sorted_dirs:
+            files = file_tree[dir_key]
+            display = dir_key if dir_key != "." else ""
+            parent = tree
+            if display:
+                parts = Path(display).parts
+                for part in parts:
+                    if part not in dir_nodes:
+                        dir_nodes[part] = parent.add(f"📁 {part}")
+                    parent = dir_nodes[part]
+            for f in files:
+                fname = Path(f["path"]).name
+                parent.add(f"📄 {fname}", style="green")
+
+        # Add Rojo manifest and README
+        if rojo_path.exists():
+            tree.add("📄 default.project.json", style="yellow")
+        if readme_path.exists():
+            tree.add("📄 README.md", style="dim")
+
+        console.print(tree)
+        console.print()
+
+    # Success message
+    print(f"\n✅ Game generated in {project_dir.absolute()}/")
+    print(f"   Open with: rojo serve")
+    print(f"   Then connect the Rojo plugin in Roblox Studio.\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Roblox AI Code Assistant — Generate Luau from your terminal",
@@ -243,6 +402,8 @@ def main():
 Examples:
   python rbxai.py "Create a RemoteEvent for player data sync"
   python rbxai.py --context server "DataStore with retry logic"
+  python rbxai.py --project "Create a tycoon game with money system"
+  python rbxai.py --project "Simple clicker game" --output-dir ./my-game
   python rbxai.py --credits
   python rbxai.py --key dev-key-2026 "Part welding system"
 
@@ -267,6 +428,20 @@ Tiers:
         help="Execution context for generated code (default: module)"
     )
     parser.add_argument(
+        "--project", "-p", default=None,
+        help="Generate a complete multi-file game project instead of a single script"
+    )
+    parser.add_argument(
+        "--game-type", "-g",
+        choices=["tycoon", "obby", "simulator", "rpg", "generic"],
+        default="generic",
+        help="Game genre for project generation (default: generic)"
+    )
+    parser.add_argument(
+        "--output-dir", "-o", default="./generated-game",
+        help="Output directory for project generation (default: ./generated-game)"
+    )
+    parser.add_argument(
         "--credits", action="store_true",
         help="Check remaining credits and exit"
     )
@@ -280,6 +455,12 @@ Tiers:
     if args.credits:
         api_key = get_api_key(args)
         check_credits(api_key)
+        return
+
+    # --project mode: generate complete game project
+    if args.project:
+        api_key = get_api_key(args)
+        generate_project(api_key, args.project, args.game_type, args.output_dir)
         return
 
     # Generate mode: need a query

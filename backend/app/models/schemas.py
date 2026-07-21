@@ -67,3 +67,46 @@ class GenerateResponse(BaseModel):
         description="True if model responded with 'I don't know' due to missing API context"
     )
     # Query discarded after response — zero retention policy
+
+
+# ── Project Generation Models ─────────────────────────────────────────────
+
+class ProjectRequest(BaseModel):
+    """Request to generate a complete multi-file Roblox game project."""
+    query: str = Field(
+        ..., min_length=1, max_length=4000,
+        description="Natural language description of the game to generate"
+    )
+    game_type: Literal["tycoon", "obby", "simulator", "rpg", "generic"] = Field(
+        default="generic",
+        description="Game genre to guide the LLM's architecture decisions"
+    )
+    top_k: int = Field(default=5, ge=1, le=20, description="Number of doc chunks to retrieve for RAG grounding")
+
+
+class ProjectFile(BaseModel):
+    """A single file in a generated game project."""
+    path: str = Field(description="Relative file path, e.g. src/Server/Main.server.luau")
+    content: str = Field(description="Luau source code content")
+
+
+class ProjectManifest(BaseModel):
+    """Metadata about the generated project."""
+    game_type: str = Field(description="Game genre used for generation")
+    description: str = Field(description="Brief summary of what was generated")
+
+
+class ProjectResponse(BaseModel):
+    """Response from the /generate-project endpoint."""
+    project_name: str = Field(description="Sanitized project name derived from the query")
+    files: list[ProjectFile] = Field(description="All generated source files")
+    manifest: ProjectManifest = Field(description="Project metadata")
+    retrieval_time_ms: float = Field(description="Time spent on RAG retrieval (ms)")
+    generation_time_ms: float = Field(description="Time spent on LLM generation (ms)")
+    total_time_ms: float = Field(description="Total wall-clock time (ms)")
+    model_used: str = Field(description="Which LLM model was used")
+    is_uncertain: bool = Field(
+        default=False,
+        description="True if model responded with 'I don't know' due to missing API context"
+    )
+    # Query discarded after response — zero retention policy

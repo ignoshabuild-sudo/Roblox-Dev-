@@ -10,13 +10,12 @@ from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load environment — OPENAI_API_KEY from backend/.env
+# Load environment — GROQ_API_KEY from backend/.env
 load_dotenv()
 
-# Preferred model for development: gpt-4o-mini (faster, cheaper)
-# For higher accuracy, gpt-4o is also available
-DEFAULT_MODEL = "gpt-4o-mini"
-ALT_MODEL = "gpt-4o"
+# Using Groq's OpenAI-compatible API for free-tier inference
+# llama-3.3-70b-versatile: fast, free-tier, excellent code generation
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You are a Roblox Luau code generation assistant. Your job is to generate production-ready, 
 type-safe Lua(u) code based on the user's request.
@@ -65,13 +64,16 @@ class LLMService:
     @property
     def client(self) -> OpenAI:
         if self._client is None:
-            api_key = os.getenv("OPENAI_API_KEY")
+            api_key = os.getenv("GROQ_API_KEY")
             if not api_key:
                 raise RuntimeError(
-                    "OPENAI_API_KEY not found in environment. "
+                    "GROQ_API_KEY not found in environment. "
                     "Set it in backend/.env or export it."
                 )
-            self._client = OpenAI(api_key=api_key)
+            self._client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1",
+            )
         return self._client
 
     def build_context_from_chunks(self, chunks: list[dict]) -> str:
@@ -198,6 +200,165 @@ Generate the Luau code following all the rules above."""
                 ref_text = line_stripped.replace("Grounding:", "").strip()
                 refs.append(ref_text)
         return refs if refs else ["No grounding references extracted"]
+
+    # ── Project Generation ───────────────────────────────────────────
+
+    PROJECT_SYSTEM_PROMPT = """You are a Roblox Luau game architect. Your job is to generate a complete, 
+multi-file Roblox game project from a natural language description.
+
+CRITICAL RULES:
+1. ONLY use APIs, methods, properties, events, and callbacks that are EXPLICITLY listed in the provided 
+   Roblox API documentation context below. Never reference any API not present in the context.
+2. If you are unsure about any API, method, or property signature, respond with exactly:
+   {"error": "I don't know — check https://create.roblox.com/docs"}
+3. Generate clean, well-commented Luau code following Roblox best practices.
+4. Use strict typing (`: number`, `: string`, etc.) where possible.
+5. Prefer `task.spawn()` over `spawn()`, `task.wait()` over `wait()`.
+6. Reference `game:GetService("ServiceName")` for all service access.
+7. No `loadstring()`, `getfenv()`, or other sandbox-escaping functions.
+8. Every file must include a `-- Grounding:` comment block listing the exact API docs used.
+
+FILE STRUCTURE (Rojo-compatible):
+- src/Server/ — Scripts (runs on server)
+- src/Client/ — LocalScripts (runs on client)
+- src/Shared/ — ModuleScripts (shared between server and client)
+
+YOU MUST INCLUDE THESE ESSENTIAL FILES:
+1. src/Server/Main.server.luau — Server entry point, game logic initialization
+2. src/Client/Main.client.luau — Client entry point, UI setup
+3. src/Shared/Config.luau — Shared configuration (game settings, constants)
+
+Add additional files as needed for the game type:
+- Tycoon: MoneyManager.server.luau, TycoonItems.server.luau, ShopUI.client.luau
+- Obby: StageManager.server.luau, Checkpoint.server.luau, TimerUI.client.luau
+- Simulator: DataManager.server.luau, StatsModule.luau, StatsUI.client.luau
+- RPG: QuestManager.server.luau, CombatSystem.server.luau, Inventory.luau, HUD.client.luau
+
+OUTPUT FORMAT — respond with ONLY a valid JSON object, no markdown fences, no extra text:
+
+{
+  "project_name": "sanitized-lowercase-name",
+  "description": "Brief one-line description of the game",
+  "files": [
+    {
+      "path": "src/Server/Main.server.luau",
+      "content": "-- Full Luau code here"
+    }
+  ]
+}
+
+The JSON must be parseable with json.loads(). Do NOT wrap in ```json``` fences.
+"""
+
+    def generate_project(
+        self,
+        query: str,
+        game_type: str,
+        context_chunks: list[dict],
+        tier: str = "free",
+    ) -> dict:
+        """
+        Generate a complete multi-file Roblox game project.
+
+        Args:
+            query: User's natural language game description
+            game_type: "tycoon", "obby", "simulator", "rpg", or "generic"
+            context_chunks: Retrieved doc chunks for RAG grounding
+            tier: User's subscription tier
+
+        Returns:
+            dict with keys: project_name, files, manifest, generation_time_ms, etc.
+        """
+        import json as _json
+
+        context_block = self.build_context_from_chunks(context_chunks)
+
+        user_prompt = f"""Game Type: {game_type}
+User Request:
+{query}
+
+{context_block}
+
+Generate the complete project following all rules above. Output ONLY valid JSON."""
+
+        start = time.time()
+
+        response = self.client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": self.PROJECT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2,
+            max_tokens=4096,
+        )
+
+        elapsed = (time.time() - start) * 1000
+
+        raw_output = response.choices[0].message.content or ""
+
+        # Try to parse JSON from the response
+        try:
+            # Strip any markdown fences
+            cleaned = raw_output.strip()
+            if cleaned.startswith("```"):
+                # find first newline after opening fence
+                first_nl = cleaned.find("\n")
+                if first_nl != -1:
+                    cleaned = cleaned[first_nl + 1:]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3]
+                cleaned = cleaned.strip()
+
+            data = _json.loads(cleaned)
+
+            if "error" in data:
+                return {
+                    "project_name": "error",
+                    "files": [],
+                    "manifest": {"game_type": game_type, "description": data["error"]},
+                    "generation_time_ms": round(elapsed, 2),
+                    "model_used": self._model,
+                    "is_uncertain": True,
+                }
+
+            # Apply watermark for free-tier users
+            if tier == "free":
+                for f in data.get("files", []):
+                    f["content"] = self.WATERMARK + f["content"]
+
+            return {
+                "project_name": data.get("project_name", "untitled-game"),
+                "files": data.get("files", []),
+                "manifest": {
+                    "game_type": game_type,
+                    "description": data.get("description", f"A {game_type} game"),
+                },
+                "generation_time_ms": round(elapsed, 2),
+                "model_used": self._model,
+                "is_uncertain": False,
+            }
+
+        except (_json.JSONDecodeError, KeyError) as e:
+            # Fallback: return a basic project with the raw output as a single file
+            return {
+                "project_name": "generated-game",
+                "files": [
+                    {
+                        "path": "src/Server/Main.server.luau",
+                        "content": (
+                            self.WATERMARK if tier == "free" else ""
+                        ) + raw_output,
+                    }
+                ],
+                "manifest": {
+                    "game_type": game_type,
+                    "description": f"Generated {game_type} game (raw output — JSON parse failed: {e})",
+                },
+                "generation_time_ms": round(elapsed, 2),
+                "model_used": self._model,
+                "is_uncertain": "I don't know" in raw_output,
+            }
 
 
 # Singleton

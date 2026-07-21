@@ -16,6 +16,7 @@ from app.core.config import DEFAULT_TOP_K
 from app.models.schemas import (
     QueryRequest, QueryResponse, DocChunk, HealthResponse,
     GenerateRequest, GenerateResponse,
+    ProjectRequest, ProjectFile, ProjectManifest, ProjectResponse,
 )
 from app.core.auth import require_api_key, validate_key, VALID_API_KEYS, CREDIT_COST
 from app.core.credits import get_credits, deduct_credit
@@ -229,3 +230,78 @@ async def check_credits(x_api_key: str = Header(..., alias="X-API-Key")):
         raise HTTPException(status_code=401, detail="Invalid API key")
     tier = key_info.get("tier", "free")
     return get_credits(x_api_key, tier)
+
+
+@app.post("/generate-project", response_model=ProjectResponse)
+async def generate_project(request: ProjectRequest, api_key: dict = Depends(require_api_key)):
+    """
+    Generate a complete multi-file Roblox game project.
+
+    Accepts a natural language game description and game type,
+    returns a structured set of server, client, and shared Luau files
+    organized for Rojo-compatible project structure.
+
+    All tiers allowed. Free tier gets watermarked files.
+    """
+    total_start = time.time()
+
+    tier = api_key.get("tier", "free")
+    api_key_str = api_key.get("_raw_key", "")
+
+    # ── Credit check ─────────────────────────────────────────────
+    cost = CREDIT_COST.get(tier, 1)
+    if cost > 0:
+        credit_info = get_credits(api_key_str, tier)
+        if credit_info.get("credits_remaining", 0) <= 0:
+            raise HTTPException(
+                status_code=402,
+                detail="No credits remaining. Upgrade or wait for daily reset.",
+            )
+
+    # 1. RAG retrieval
+    try:
+        chunks, retrieval_ms = vector_store.query(
+            query_text=request.query,
+            top_k=request.top_k or DEFAULT_TOP_K,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAG retrieval error: {str(e)}")
+
+    # 2. LLM project generation
+    try:
+        gen_result = llm_service.generate_project(
+            query=request.query,
+            game_type=request.game_type,
+            context_chunks=chunks,
+            tier=tier,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM generation error: {str(e)}")
+
+    total_ms = (time.time() - total_start) * 1000
+
+    # ── Credit deduction ─────────────────────────────────────────
+    if cost > 0:
+        deduct_credit(api_key_str, tier)
+
+    print(
+        f"[generate-project] game_type={request.game_type} "
+        f"files={len(gen_result.get('files', []))} "
+        f"retrieval={retrieval_ms:.0f}ms "
+        f"generation={gen_result.get('generation_time_ms', 0):.0f}ms "
+        f"total={total_ms:.0f}ms"
+    )
+
+    return ProjectResponse(
+        project_name=gen_result["project_name"],
+        files=[ProjectFile(path=f["path"], content=f["content"]) for f in gen_result.get("files", [])],
+        manifest=ProjectManifest(
+            game_type=gen_result["manifest"]["game_type"],
+            description=gen_result["manifest"]["description"],
+        ),
+        retrieval_time_ms=round(retrieval_ms, 2),
+        generation_time_ms=gen_result["generation_time_ms"],
+        total_time_ms=round(total_ms, 2),
+        model_used=gen_result["model_used"],
+        is_uncertain=gen_result["is_uncertain"],
+    )
