@@ -53,6 +53,24 @@ export type GenerateResponse = {
 	isUncertain: boolean,
 }
 
+-- ── Auth & Credits ──────────────────────────────────────────────────────
+
+export type ValidateKeyResponse = {
+	valid: boolean,
+	tier: string?,
+	creditsRemaining: number?,
+	dailyLimit: number?,
+	totalUsed: number?,
+}
+
+export type CreditsResponse = {
+	creditsRemaining: number,
+	dailyLimit: number,
+	totalUsed: number,
+	tier: string?,
+	lastResetDate: string?,
+}
+
 -- ── Plugin Internal ─────────────────────────────────────────────────────
 
 export type ApiError = {

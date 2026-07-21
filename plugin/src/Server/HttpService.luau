@@ -7,6 +7,7 @@
 --  - All responses are parsed into typed Luau tables matching backend schemas
 --  - Timeouts and retries are configurable via Constants
 --  - Zero data retention: we log only anonymized timing, never query content
+--  - API key is sent via X-API-Key header on every authenticated request
 
 local HttpService = {}
 HttpService.__index = HttpService
@@ -32,15 +33,31 @@ local function decodeResponse(json: string): { [string]: any }
 	return httpService:JSONDecode(json)
 end
 
+local function buildHeaders(self: typeof(HttpService)): { [string]: string }
+	local headers = {
+		["Content-Type"] = "application/json",
+	}
+	if self._apiKey and self._apiKey ~= "" then
+		headers["X-API-Key"] = self._apiKey
+	end
+	return headers
+end
+
 -- ── Public API ──────────────────────────────────────────────────────────
 
 function HttpService.new(baseUrl: string?): typeof(HttpService)
 	local self = setmetatable({}, HttpService)
 	self._baseUrl = baseUrl or Constants.DEFAULT_API_BASE_URL
+	self._apiKey = ""
 	return self
 end
 
--- GET /health — check backend availability.
+-- Set the API key used for authenticated endpoints.
+function HttpService:setApiKey(key: string)
+	self._apiKey = key
+end
+
+-- GET /health — check backend availability (no auth required).
 function HttpService:health(): Types.HttpResult<Types.HealthResponse>
 	local httpService = game:GetService("HttpService")
 	local url = buildUrl(self._baseUrl, Constants.ENDPOINT_HEALTH)
@@ -81,8 +98,10 @@ function HttpService:query(request: Types.QueryRequest): Types.HttpResult<Types.
 		top_k = request.topK or Constants.DEFAULT_TOP_K,
 	}
 
+	local headers = buildHeaders(self)
+
 	local ok, result = pcall(function()
-		return httpService:PostAsync(url, encodeBody(body), Enum.HttpContentType.ApplicationJson, false)
+		return httpService:PostAsync(url, encodeBody(body), Enum.HttpContentType.ApplicationJson, false, headers)
 	end)
 
 	if not ok then
@@ -118,7 +137,7 @@ function HttpService:query(request: Types.QueryRequest): Types.HttpResult<Types.
 	}
 end
 
--- POST /generate — generate Luau code with RAG grounding.
+-- POST /generate — generate Luau code with RAG grounding (requires API key).
 function HttpService:generate(request: Types.GenerateRequest): Types.HttpResult<Types.GenerateResponse>
 	local httpService = game:GetService("HttpService")
 	local url = buildUrl(self._baseUrl, Constants.ENDPOINT_GENERATE)
@@ -130,8 +149,10 @@ function HttpService:generate(request: Types.GenerateRequest): Types.HttpResult<
 		model = request.model or Constants.DEFAULT_MODEL,
 	}
 
+	local headers = buildHeaders(self)
+
 	local ok, result = pcall(function()
-		return httpService:PostAsync(url, encodeBody(body), Enum.HttpContentType.ApplicationJson, false)
+		return httpService:PostAsync(url, encodeBody(body), Enum.HttpContentType.ApplicationJson, false, headers)
 	end)
 
 	if not ok then
@@ -156,6 +177,98 @@ function HttpService:generate(request: Types.GenerateRequest): Types.HttpResult<
 			totalTimeMs = data.total_time_ms :: number,
 			modelUsed = data.model_used :: string,
 			isUncertain = data.is_uncertain :: boolean,
+		},
+	}
+end
+
+-- GET /validate-key — validate an API key and return tier + credit info.
+function HttpService:validateKey(key: string): Types.HttpResult<Types.ValidateKeyResponse>
+	local httpService = game:GetService("HttpService")
+	local url = buildUrl(self._baseUrl, Constants.ENDPOINT_VALIDATE_KEY)
+
+	local headers = {
+		["X-API-Key"] = key,
+	}
+
+	local ok, result = pcall(function()
+		return httpService:GetAsync(url, false, headers)
+	end)
+
+	if not ok then
+		return {
+			success = false,
+			error = {
+				statusCode = 0,
+				message = "Validate-key request failed: " .. tostring(result),
+			},
+		}
+	end
+
+	local data = decodeResponse(result)
+	return {
+		success = true,
+		data = {
+			valid = data.valid :: boolean,
+			tier = data.tier :: string?,
+			creditsRemaining = data.credits_remaining :: number?,
+			dailyLimit = data.daily_limit :: number?,
+			totalUsed = data.total_used :: number?,
+		},
+	}
+end
+
+-- GET /credits — retrieve credit balance for the current API key.
+function HttpService:getCredits(): Types.HttpResult<Types.CreditsResponse>
+	local httpService = game:GetService("HttpService")
+	local url = buildUrl(self._baseUrl, Constants.ENDPOINT_CREDITS)
+
+	if not self._apiKey or self._apiKey == "" then
+		return {
+			success = false,
+			error = {
+				statusCode = 401,
+				message = "No API key set — authenticate first",
+			},
+		}
+	end
+
+	local headers = buildHeaders(self)
+
+	local ok, result = pcall(function()
+		return httpService:GetAsync(url, false, headers)
+	end)
+
+	if not ok then
+		return {
+			success = false,
+			error = {
+				statusCode = 0,
+				message = "Credits request failed: " .. tostring(result),
+			},
+		}
+	end
+
+	local data = decodeResponse(result)
+
+	-- Handle 401 error response from backend
+	if data.detail then
+		return {
+			success = false,
+			error = {
+				statusCode = 401,
+				message = data.detail :: string,
+			},
+		}
+	end
+
+	return {
+		success = true,
+		data = {
+			creditsRemaining = data.credits_remaining :: number,
+			dailyLimit = data.daily_limit :: number,
+			totalUsed = data.total_used :: number,
+			tier = data.tier :: string?,
+			lastResetDate = data.last_reset_date :: string?,
 		},
 	}
 end
