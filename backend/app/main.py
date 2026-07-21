@@ -9,7 +9,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import DEFAULT_TOP_K
@@ -17,6 +17,7 @@ from app.models.schemas import (
     QueryRequest, QueryResponse, DocChunk, HealthResponse,
     GenerateRequest, GenerateResponse,
 )
+from app.core.auth import require_api_key, validate_key, VALID_API_KEYS
 from app.services.vector_store import vector_store
 from app.services.llm_service import llm_service, DEFAULT_MODEL
 
@@ -111,7 +112,7 @@ async def query_docs(request: QueryRequest):
 
 
 @app.post("/generate", response_model=GenerateResponse)
-async def generate_code(request: GenerateRequest):
+async def generate_code(request: GenerateRequest, api_key: dict = Depends(require_api_key)):
     """
     Generate production-ready Luau code from a natural language description.
 
@@ -175,3 +176,15 @@ async def generate_code(request: GenerateRequest):
         model_used=gen_result["model_used"],
         is_uncertain=gen_result["is_uncertain"],
     )
+
+
+@app.get("/validate-key")
+async def validate_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+    """
+    Validate an API key and return its tier.
+    Used by the Studio plugin and CLI to check access before making generate requests.
+    """
+    key_info = validate_key(x_api_key)
+    if key_info is None:
+        return {"valid": False, "tier": None}
+    return {"valid": True, "tier": key_info.get("tier", "unknown")}
